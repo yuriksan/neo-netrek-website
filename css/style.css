@@ -423,6 +423,23 @@ kbd {
   gap: 0.6rem;
 }
 
+.keybind-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.2rem;
+}
+
+.keybind-group h4 {
+  color: var(--accent-blue, #4488ff);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border-color, #222244);
+}
+
 .keybind {
   display: flex;
   align-items: center;
@@ -433,6 +450,17 @@ kbd {
 .keybind span {
   color: var(--text-secondary);
   font-size: 0.9rem;
+}
+
+.keybind-mouse {
+  display: inline-block;
+  padding: 0.15em 0.5em;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: var(--text-primary, #d0d8e8);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color, #222244);
+  border-radius: 3px;
 }
 
 /* ---------- Ships ---------- */
@@ -1153,6 +1181,7 @@ kbd {
   .timeline { padding-left: 2.5rem; }
 
   .keybind-grid { grid-template-columns: 1fr; }
+  .keybind-groups { grid-template-columns: 1fr 1fr; }
 
   .servers-grid { grid-template-columns: 1fr; }
 }
