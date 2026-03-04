@@ -174,11 +174,9 @@
           '</div>';
       }).join('');
 
-    // Update the main Play button to link to first instance
-    const mainBtn = card.querySelector('.server-actions .server-join-btn');
-    if (mainBtn && mainBtn.tagName === 'A') {
-      mainBtn.href = baseUrl + '/play/?server=' + encodeURIComponent(instances[0].id);
-    }
+    // Hide main Play button when per-instance buttons are shown
+    const actions = card.querySelector('.server-actions');
+    if (actions) actions.style.display = 'none';
   }
 
   function renderServers() {
