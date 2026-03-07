@@ -73,7 +73,7 @@
   function safeUrl(url) {
     try {
       var parsed = new URL(url, location.href);
-      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return url;
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return parsed.href;
     } catch (e) { /* invalid URL */ }
     return '';
   }
@@ -163,8 +163,8 @@
       <div class="server-instances"></div>
       <div class="server-actions">
         ${joinBtn}
+        ${portalBtn}
       </div>
-      ${portalBtn}
     </div>`;
   }
 
@@ -197,8 +197,8 @@
       }).join('');
 
     // Hide main Play button when per-instance buttons are shown
-    const actions = card.querySelector('.server-actions');
-    if (actions) actions.style.display = 'none';
+    const mainPlayBtn = card.querySelector('.server-actions > .server-join-btn');
+    if (mainPlayBtn) mainPlayBtn.style.display = 'none';
   }
 
   function updateLatencyDisplay(card, latencyMs) {
@@ -273,9 +273,13 @@
 
       pendingLatency++;
 
+      // Abort requests that take longer than 8 seconds
+      var controller = new AbortController();
+      var timeoutId = setTimeout(function () { controller.abort(); }, 8000);
+
       // Measure latency via health endpoint timing
       const t0 = performance.now();
-      const healthReq = fetch(baseUrl + '/health', { mode: 'cors' })
+      const healthReq = fetch(baseUrl + '/health', { mode: 'cors', signal: controller.signal })
         .then((r) => {
           const latency = Math.round(performance.now() - t0);
           if (!r.ok) throw new Error('not ok');
@@ -285,7 +289,7 @@
           });
         });
 
-      const instancesReq = fetch(baseUrl + '/api/instances', { mode: 'cors' })
+      const instancesReq = fetch(baseUrl + '/api/instances', { mode: 'cors', signal: controller.signal })
         .then((r) => { if (!r.ok) throw new Error('not ok'); return r.json(); })
         .catch(() => null);
 
@@ -315,6 +319,7 @@
           updateLatencyDisplay(card, -1);
         })
         .finally(() => {
+          clearTimeout(timeoutId);
           pendingLatency--;
           if (pendingLatency === 0 && generation === renderGeneration) {
             sortServersByLatency(grid);
