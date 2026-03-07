@@ -202,12 +202,12 @@
   }
 
   function updateLatencyDisplay(card, latencyMs) {
-    var barsEl = card.querySelector('.latency-bars');
-    var textEl = card.querySelector('.latency-text');
+    const barsEl = card.querySelector('.latency-bars');
+    const textEl = card.querySelector('.latency-text');
     if (!barsEl || !textEl) return;
 
-    var level; // 0=timeout, 1=high, 2=medium, 3=good, 4=excellent
-    var colorClass;
+    let level; // 0=offline/failed, 1=high, 2=medium, 3=good, 4=excellent
+    let colorClass;
     if (latencyMs < 0) {
       // Offline / failed
       level = 0;
@@ -235,16 +235,16 @@
   }
 
   function sortServersByLatency(grid) {
-    var cards = Array.from(grid.querySelectorAll('.server-card'));
+    const cards = Array.from(grid.querySelectorAll('.server-card'));
     cards.sort(function (a, b) {
-      var la = parseInt(a.getAttribute('data-latency') || '99999', 10);
-      var lb = parseInt(b.getAttribute('data-latency') || '99999', 10);
+      const la = parseInt(a.getAttribute('data-latency') || '99999', 10);
+      const lb = parseInt(b.getAttribute('data-latency') || '99999', 10);
       return la - lb;
     });
     cards.forEach(function (card) { grid.appendChild(card); });
   }
 
-  var renderGeneration = 0;
+  let renderGeneration = 0;
 
   function renderServers() {
     const grid = document.getElementById('servers-grid');
@@ -254,7 +254,7 @@
     const servers = getServers();
     grid.innerHTML = servers.map(renderServerCard).join('');
 
-    var pendingLatency = 0;
+    let pendingLatency = 0;
 
     // Probe each server for health status, latency, and instances
     servers.forEach((server) => {
@@ -273,23 +273,23 @@
 
       pendingLatency++;
 
-      // Abort requests that take longer than 8 seconds
-      var controller = new AbortController();
-      var timeoutId = setTimeout(function () { controller.abort(); }, 8000);
+      // Separate abort controllers so each request has its own 8s timeout
+      const healthController = new AbortController();
+      const healthTimeout = setTimeout(() => { healthController.abort(); }, 8000);
+      const instanceController = new AbortController();
+      const instanceTimeout = setTimeout(() => { instanceController.abort(); }, 8000);
 
       // Measure latency via health endpoint timing
       const t0 = performance.now();
-      const healthReq = fetch(baseUrl + '/health', { mode: 'cors', signal: controller.signal })
+      let measuredLatency = -1;
+      const healthReq = fetch(baseUrl + '/health', { mode: 'cors', signal: healthController.signal })
         .then((r) => {
-          const latency = Math.round(performance.now() - t0);
+          measuredLatency = Math.round(performance.now() - t0);
           if (!r.ok) throw new Error('not ok');
-          return r.json().then(function (data) {
-            data._latency = latency;
-            return data;
-          });
+          return r.json();
         });
 
-      const instancesReq = fetch(baseUrl + '/api/instances', { mode: 'cors', signal: controller.signal })
+      const instancesReq = fetch(baseUrl + '/api/instances', { mode: 'cors', signal: instanceController.signal })
         .then((r) => { if (!r.ok) throw new Error('not ok'); return r.json(); })
         .catch(() => null);
 
@@ -300,14 +300,14 @@
           dot.classList.add('status-online');
           text.textContent = 'Online';
 
-          var n = data.connections ?? data.players ?? data.playerCount;
+          const n = data.connections ?? data.players ?? data.playerCount;
           if (typeof n === 'number') {
             count.textContent = n + (n === 1 ? ' player' : ' players');
           }
 
           // Update latency display
-          card.setAttribute('data-latency', String(data._latency));
-          updateLatencyDisplay(card, data._latency);
+          card.setAttribute('data-latency', String(measuredLatency));
+          updateLatencyDisplay(card, measuredLatency);
         })
         .catch(() => {
           if (generation !== renderGeneration) return;
@@ -319,7 +319,7 @@
           updateLatencyDisplay(card, -1);
         })
         .finally(() => {
-          clearTimeout(timeoutId);
+          clearTimeout(healthTimeout);
           pendingLatency--;
           if (pendingLatency === 0 && generation === renderGeneration) {
             sortServersByLatency(grid);
@@ -327,18 +327,22 @@
         });
 
       // Render instances if the server has multiple game modes
-      instancesReq.then((instances) => {
-        if (generation !== renderGeneration) return;
-        if (instances) {
-          renderInstances(card, instances, server.url);
+      instancesReq
+        .then((instances) => {
+          if (generation !== renderGeneration) return;
+          if (instances) {
+            renderInstances(card, instances, server.url);
 
-          // Update total player count from instances
-          if (Array.isArray(instances) && instances.length > 0) {
-            var total = instances.reduce((sum, inst) => sum + (inst.connections || 0), 0);
-            count.textContent = total + (total === 1 ? ' player' : ' players');
+            // Update total player count from instances
+            if (Array.isArray(instances) && instances.length > 0) {
+              const total = instances.reduce((sum, inst) => sum + (inst.connections || 0), 0);
+              count.textContent = total + (total === 1 ? ' player' : ' players');
+            }
           }
-        }
-      });
+        })
+        .finally(() => {
+          clearTimeout(instanceTimeout);
+        });
     });
   }
 
