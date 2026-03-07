@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NeoNetrek - Active Servers</title>
+  <title>NeoNetrek - Global Leaderboard</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="css/style.css">
   <script defer src="https://cloud.umami.is/script.js" data-website-id="e0d481f1-9120-42f4-aa07-5c133b0e5f1d"></script>
@@ -32,17 +32,39 @@
   </ul>
 </nav>
 
-<!-- Servers Section -->
-<section id="servers" class="section">
+<!-- Leaderboard Section -->
+<section id="leaderboard" class="section">
   <div class="container">
-    <h2 class="section-title">Active Servers</h2>
-    <p class="section-intro">Choose a server to join. Each server has its own community, leaderboard, and settings.</p>
-    <div class="servers-grid" id="servers-grid">
-      <!-- Populated by JS -->
+    <h2 class="section-title">Global Leaderboard</h2>
+    <p class="section-intro">Player statistics aggregated across all NeoNetrek servers worldwide.</p>
+
+    <div class="leaderboard-controls">
+      <input type="text" id="leaderboard-search" class="leaderboard-search" placeholder="Search player name..." autocomplete="off">
+      <span id="leaderboard-status" class="leaderboard-status">Loading...</span>
     </div>
-    <div style="text-align:center;margin-top:3rem">
-      <a class="btn btn-secondary" href="https://github.com/neonetrek/neonetrek.github.io" target="_blank" rel="noopener noreferrer">Add Your Server</a>
+
+    <div class="ranks-table-wrap">
+      <table class="ranks-table leaderboard-table" id="leaderboard-table">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort="rank">Rank</th>
+            <th class="sortable" data-sort="name">Player</th>
+            <th>Server</th>
+            <th>Instance</th>
+            <th class="sortable" data-sort="hours">Hours</th>
+            <th class="sortable" data-sort="offense">Offense</th>
+            <th class="sortable" data-sort="bombing">Bombing</th>
+            <th class="sortable" data-sort="planets">Planets</th>
+            <th class="sortable sorted-desc" data-sort="total">Total</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body">
+          <tr><td colspan="9" class="leaderboard-loading">Fetching data from servers...</td></tr>
+        </tbody>
+      </table>
     </div>
+
+    <div id="leaderboard-updated" class="leaderboard-updated"></div>
   </div>
 </section>
 
@@ -84,7 +106,7 @@
   </div>
 </footer>
 
-<script src="servers.js"></script>
+<script src="js/leaderboard.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
