@@ -70,6 +70,26 @@
     return div.innerHTML;
   }
 
+  function safeUrl(url) {
+    try {
+      const parsed = new URL(url, location.href);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return parsed.href;
+    } catch (e) { /* invalid URL */ }
+    return '';
+  }
+
+  function safeBaseUrl(url) {
+    return safeUrl((url || '').replace(/\/+$/, ''));
+  }
+
+  const LATENCY_LEVELS = [
+    { maxMs: 0,        level: 0, css: 'latency-none' },
+    { maxMs: 80,       level: 4, css: 'latency-excellent' },
+    { maxMs: 150,      level: 3, css: 'latency-good' },
+    { maxMs: 250,      level: 2, css: 'latency-medium' },
+    { maxMs: Infinity, level: 1, css: 'latency-high' },
+  ];
+
   // ---------- Server List ----------
   const SAMPLE_SERVERS = [
     {
@@ -103,7 +123,7 @@
   }
 
   function serverCardId(server) {
-    return 'server-' + escapeHtml(server.name || 'Unnamed Server')
+    return 'server-' + (server.name || 'Unnamed Server')
       .replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
   }
 
@@ -113,13 +133,15 @@
     const description = escapeHtml(server.description || '');
     const id = serverCardId(server);
 
-    const playUrl = server.url
-      ? escapeHtml(server.url.replace(/\/+$/, '') + '/play/')
-      : '';
+    const baseUrl = safeBaseUrl(server.url);
 
-    const joinBtn = playUrl
-      ? `<a class="server-join-btn" href="${playUrl}" target="_blank" rel="noopener noreferrer">Play in Browser</a>`
+    const joinBtn = baseUrl
+      ? `<a class="server-join-btn" href="${baseUrl}/play/" target="_blank" rel="noopener noreferrer">Play in Browser</a>`
       : `<span class="server-join-btn server-join-disabled">No URL</span>`;
+
+    const portalBtn = baseUrl
+      ? `<a class="btn btn-secondary" href="${baseUrl}" target="_blank" rel="noopener noreferrer">Leaderboard</a>`
+      : '';
 
     const established = server.established
       ? `<div class="server-established">Est. ${escapeHtml(server.established)}</div>`
@@ -131,7 +153,7 @@
 
     return `<div class="server-card" id="${id}">
       <div class="server-name">${name}</div>
-      <div class="server-location">&gt; ${location}</div>
+      <div class="server-location">${location}</div>
       ${established}
       <div class="server-desc">${description}</div>
       ${features}
@@ -140,9 +162,19 @@
         <span class="status-text">Checking...</span>
         <span class="player-count"></span>
       </div>
+      <div class="server-latency">
+        <span class="latency-bars">
+          <span class="latency-bar bar-1"></span>
+          <span class="latency-bar bar-2"></span>
+          <span class="latency-bar bar-3"></span>
+          <span class="latency-bar bar-4"></span>
+        </span>
+        <span class="latency-text">Measuring...</span>
+      </div>
       <div class="server-instances"></div>
       <div class="server-actions">
         ${joinBtn}
+        ${portalBtn}
       </div>
     </div>`;
   }
@@ -151,7 +183,8 @@
     const container = card.querySelector('.server-instances');
     if (!container || !Array.isArray(instances) || instances.length <= 1) return;
 
-    const baseUrl = serverUrl.replace(/\/+$/, '');
+    const baseUrl = safeBaseUrl(serverUrl);
+    if (!baseUrl) return;
 
     container.innerHTML = `<div class="instance-list-label">Game Modes</div>` +
       instances.map(function (inst) {
@@ -169,26 +202,62 @@
           (inst.description ? '<div class="instance-desc">' + escapeHtml(inst.description) + '</div>' : '') +
           (features ? '<div class="instance-features">' + features + '</div>' : '') +
           '<a class="server-join-btn server-join-small" href="' +
-            escapeHtml(baseUrl + '/play/?server=' + encodeURIComponent(inst.id)) +
+            baseUrl + '/play/?server=' + encodeURIComponent(inst.id) +
             '" target="_blank" rel="noopener noreferrer">Play</a>' +
           '</div>';
       }).join('');
 
     // Hide main Play button when per-instance buttons are shown
-    const actions = card.querySelector('.server-actions');
-    if (actions) actions.style.display = 'none';
+    const mainPlayBtn = card.querySelector('.server-actions > .server-join-btn');
+    if (mainPlayBtn) mainPlayBtn.style.display = 'none';
   }
+
+  function updateLatencyDisplay(card, latencyMs) {
+    const barsEl = card.querySelector('.latency-bars');
+    const textEl = card.querySelector('.latency-text');
+    if (!barsEl || !textEl) return;
+
+    const entry = latencyMs < 0
+      ? LATENCY_LEVELS[0]
+      : LATENCY_LEVELS.find(l => l.maxMs > 0 && latencyMs < l.maxMs) || LATENCY_LEVELS[LATENCY_LEVELS.length - 1];
+
+    textEl.textContent = latencyMs < 0 ? '--' : latencyMs + ' ms';
+    barsEl.className = 'latency-bars ' + entry.css + ' latency-level-' + entry.level;
+  }
+
+  function sortServersByLatency(grid) {
+    const cards = Array.from(grid.querySelectorAll('.server-card'));
+    cards.sort(function (a, b) {
+      const la = parseInt(a.getAttribute('data-latency') || '99999', 10);
+      const lb = parseInt(b.getAttribute('data-latency') || '99999', 10);
+      return la - lb;
+    });
+    cards.forEach(function (card) { grid.appendChild(card); });
+  }
+
+  let renderGeneration = 0;
+  let activeControllers = [];
 
   function renderServers() {
     const grid = document.getElementById('servers-grid');
     if (!grid) return;
 
+    // Abort any in-flight requests from a previous render
+    activeControllers.forEach(c => c.abort());
+    activeControllers = [];
+
+    const generation = ++renderGeneration;
     const servers = getServers();
     grid.innerHTML = servers.map(renderServerCard).join('');
 
-    // Probe each server for health status and instances
+    let pendingLatency = 0;
+
+    // Probe each server for health status, latency, and instances
     servers.forEach((server) => {
       if (!server.url) return;
+
+      const baseUrl = safeBaseUrl(server.url);
+      if (!baseUrl) return;
 
       const id = serverCardId(server);
       const card = document.getElementById(id);
@@ -197,43 +266,73 @@
       const dot = card.querySelector('.status-dot');
       const text = card.querySelector('.status-text');
       const count = card.querySelector('.player-count');
-      const baseUrl = server.url.replace(/\/+$/, '');
 
-      // Fetch health and instances in parallel
-      const healthReq = fetch(baseUrl + '/health', { mode: 'cors' })
-        .then((r) => { if (!r.ok) throw new Error('not ok'); return r.json(); });
+      pendingLatency++;
 
-      const instancesReq = fetch(baseUrl + '/api/instances', { mode: 'cors' })
+      // Separate abort controllers so each request has its own 8s timeout
+      const healthController = new AbortController();
+      const healthTimeout = setTimeout(() => { healthController.abort(); }, 8000);
+      const instanceController = new AbortController();
+      const instanceTimeout = setTimeout(() => { instanceController.abort(); }, 8000);
+      activeControllers.push(healthController, instanceController);
+
+      // Measure latency via health endpoint timing
+      const t0 = performance.now();
+      let measuredLatency = -1;
+      const healthReq = fetch(baseUrl + '/health', { mode: 'cors', signal: healthController.signal })
+        .then((r) => {
+          measuredLatency = Math.round(performance.now() - t0);
+          if (!r.ok) throw new Error('not ok');
+          return r.json();
+        });
+
+      const instancesReq = fetch(baseUrl + '/api/instances', { mode: 'cors', signal: instanceController.signal })
         .then((r) => { if (!r.ok) throw new Error('not ok'); return r.json(); })
         .catch(() => null);
 
-      healthReq
-        .then((data) => {
+      // Wait for both to settle, then update the card once
+      Promise.allSettled([healthReq, instancesReq]).then(([healthResult, instanceResult]) => {
+        clearTimeout(healthTimeout);
+        clearTimeout(instanceTimeout);
+        if (generation !== renderGeneration) return;
+
+        if (healthResult.status === 'fulfilled') {
+          const data = healthResult.value;
           dot.classList.remove('status-unknown');
           dot.classList.add('status-online');
           text.textContent = 'Online';
 
-          var n = data.connections ?? data.players ?? data.playerCount;
-          if (typeof n === 'number') {
-            count.textContent = n + (n === 1 ? ' player' : ' players');
+          // Prefer instance-derived player count, fall back to health endpoint
+          let playerTotal;
+          const instances = instanceResult.status === 'fulfilled' ? instanceResult.value : null;
+          if (Array.isArray(instances) && instances.length > 0) {
+            playerTotal = instances.reduce((sum, inst) => sum + (inst.connections || 0), 0);
+          } else {
+            const n = data.connections ?? data.players ?? data.playerCount;
+            if (typeof n === 'number') playerTotal = n;
           }
-        })
-        .catch(() => {
+          if (playerTotal !== undefined) {
+            count.textContent = playerTotal + (playerTotal === 1 ? ' player' : ' players');
+          }
+
+          card.setAttribute('data-latency', String(measuredLatency));
+          updateLatencyDisplay(card, measuredLatency);
+
+          // Render instance sub-cards if multiple game modes
+          if (instances) {
+            renderInstances(card, instances, server.url);
+          }
+        } else {
           dot.classList.remove('status-unknown');
           dot.classList.add('status-offline');
           text.textContent = 'Offline';
-        });
+          card.setAttribute('data-latency', '99999');
+          updateLatencyDisplay(card, -1);
+        }
 
-      // Render instances if the server has multiple game modes
-      instancesReq.then((instances) => {
-        if (instances) {
-          renderInstances(card, instances, server.url);
-
-          // Update total player count from instances
-          if (Array.isArray(instances) && instances.length > 0) {
-            var total = instances.reduce((sum, inst) => sum + (inst.connections || 0), 0);
-            count.textContent = total + (total === 1 ? ' player' : ' players');
-          }
+        pendingLatency--;
+        if (pendingLatency === 0) {
+          sortServersByLatency(grid);
         }
       });
     });

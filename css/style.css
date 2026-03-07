@@ -1055,6 +1055,79 @@ kbd {
   padding: 0.3rem 1rem;
 }
 
+/* -- Server Latency Indicator -- */
+.server-latency {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.latency-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.latency-bar {
+  width: 4px;
+  background: #333;
+  border-radius: 1px;
+  transition: background 0.3s;
+}
+
+.latency-bar.bar-1 { height: 4px; }
+.latency-bar.bar-2 { height: 7px; }
+.latency-bar.bar-3 { height: 10px; }
+.latency-bar.bar-4 { height: 14px; }
+
+/* Level 0: offline / no signal */
+.latency-level-0 .latency-bar { background: #333; }
+.latency-bars.latency-none + .latency-text { color: var(--text-secondary); }
+
+/* Level 1: high latency - red, only 1 bar lit */
+.latency-level-1 .bar-1 { background: #ff3333; box-shadow: 0 0 4px rgba(255,51,51,0.4); }
+
+/* Level 2: medium latency - orange, 2 bars lit */
+.latency-level-2 .bar-1,
+.latency-level-2 .bar-2 { background: #ff8833; box-shadow: 0 0 4px rgba(255,136,51,0.4); }
+
+/* Level 3: good latency - yellow-green, 3 bars lit */
+.latency-level-3 .bar-1,
+.latency-level-3 .bar-2,
+.latency-level-3 .bar-3 { background: #88cc33; box-shadow: 0 0 4px rgba(136,204,51,0.4); }
+
+/* Level 4: excellent latency - green, all bars lit */
+.latency-level-4 .bar-1,
+.latency-level-4 .bar-2,
+.latency-level-4 .bar-3,
+.latency-level-4 .bar-4 { background: #33ff33; box-shadow: 0 0 4px rgba(51,255,51,0.4); }
+
+.latency-text {
+  color: var(--text-secondary);
+}
+
+.latency-bars.latency-excellent + .latency-text { color: #33ff33; }
+.latency-bars.latency-good + .latency-text { color: #88cc33; }
+.latency-bars.latency-medium + .latency-text { color: #ff8833; }
+.latency-bars.latency-high + .latency-text { color: #ff3333; }
+
+/* -- Server Actions Layout -- */
+.server-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.server-actions .btn {
+  font-size: 0.85rem;
+  padding: 0.5rem 1.5rem;
+}
+
 /* ---------- Play CTA ---------- */
 .section-play {
   background: linear-gradient(135deg, #0a0a2e 0%, #1a0a3a 50%, #0a1a3a 100%);
